@@ -5,57 +5,64 @@ const Audio = require('../models/Audio');
 
 const router = express.Router();
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
-});
 
-const upload = multer({ storage });
+const upload = multer({ storage: multer.memoryStorage() });
+
 
 router.post('/', upload.single('audio'), async (req, res) => {
   try {
+    const { title } = req.body;
+    const file = req.file;
+
+    if (!file || !title) {
+      return res.status(400).json({ message: 'Title and audio file required' });
+    }
+
     const audio = new Audio({
-      title: req.body.title,
-      filename: req.file.filename,
+      title,
+      mimetype: file.mimetype,
+      audioData: file.buffer
     });
+
     await audio.save();
 
     res.status(201).json({
       _id: audio._id,
       title: audio.title,
-      url: `${process.env.BASE_URL}/uploads/${audio.filename}`
+      url: `${process.env.BASE_URL}/api/audio/${audio._id}` 
     });
   } catch (err) {
+    console.error('Upload failed:', err);
     res.status(500).json({ message: 'Upload failed', error: err.message });
   }
 });
 
+
 router.get('/', async (req, res) => {
   try {
     const audioList = await Audio.find().sort({ createdAt: -1 });
-    const response = audioList.map((audio) => ({
+    const mapped = audioList.map((audio) => ({
       _id: audio._id,
       title: audio.title,
-      url: `${process.env.BASE_URL}/uploads/${audio.filename}`
+      url: `${process.env.BASE_URL}/api/audio/${audio._id}`
     }));
-    res.json(response);
+    res.json(mapped);
   } catch (err) {
     res.status(500).json({ message: 'Fetch failed', error: err.message });
   }
 });
 
-module.exports = router;
 
-
-router.get('/', async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const audioList = await Audio.find().sort({ createdAt: -1 });
-    const response = audioList.map((audio) => ({
-      _id: audio._id,
-      title: audio.title,
-      url: `${process.env.BASE_URL}/uploads/${audio.filename}`
-    }));
-    res.json(response);
+    const audio = await Audio.findById(req.params.id);
+
+    if (!audio) {
+      return res.status(404).json({ message: 'Audio not found' });
+    }
+
+    res.set('Content-Type', audio.mimetype);
+    res.send(audio.audioData);
   } catch (err) {
     res.status(500).json({ message: 'Fetch failed', error: err.message });
   }
