@@ -45,3 +45,20 @@ router.get('/', async (req, res) => {
 });
 
 module.exports = router;
+
+
+router.get('/', async (req, res) => {
+  try {
+    const audioList = await Audio.find().sort({ createdAt: -1 });
+    const response = audioList.map((audio) => ({
+      _id: audio._id,
+      title: audio.title,
+      url: `${process.env.BASE_URL}/uploads/${audio.filename}`
+    }));
+    res.json(response);
+  } catch (err) {
+    res.status(500).json({ message: 'Fetch failed', error: err.message });
+  }
+});
+
+module.exports = router;
